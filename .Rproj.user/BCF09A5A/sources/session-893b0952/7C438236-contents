@@ -1,0 +1,266 @@
+---
+title: "AI bubble analysis"
+author: "Gabriele Aliano"
+date: "2025-10-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+# Core libraries
+library(tidyverse)
+library(readr)
+library(quantmod)
+
+analysis_asof <- as.Date("2025-10-20")
+
+dir.create("data/processed", recursive = TRUE, showWarnings = FALSE)
+```
+# 1. Ask (The Business Task)
+
+Our client, Momentum Wealth Management, is fielding concerns from clients about a potential "AI Bubble." They are wary of a repeat of the 2000 Dot-com crash.
+
+My task is to conduct a comparative analysis to answer their core question: Is the current AI boom a hype-driven bubble, or is it supported by stronger business fundamentals than the Dot-com era?
+
+This analysis will compare a basket of today's top "AI stocks" against a basket of top "Dot-com stocks" from the late 1990s, focusing on two key areas:
+
+Price Performance: Do the stock price trajectories look similar?
+
+Financial Fundamentals: How do valuations (Price-to-Sales) and actual growth (Revenue Growth %) compare?
+
+The final deliverable will be a data-driven recommendation for the firm's portfolio managers.
+
+# 2. Prepare (Data Collection)
+
+To perform this analysis:
+
+- I used the quantmod package for historical stock prices, which pulls data directly from Yahoo Finance.
+
+- I hard coded relevant historical fundamental data to avoid websites from blocking scraping requests.
+
+The data is organized into two "baskets" representing each era:
+
+- AI Basket (2020-Present): MSFT, GOOG, NVDA, AMD, SMCI, AI, PLTR
+
+- Dot-com Basket (1997-2002): MSFT, INTC, CSCO, ORCL, QCOM, EBAY, AMZN
+
+
+```{r load-data }
+
+# Baskets
+ai_tickers     <- c("MSFT", "GOOG", "NVDA", "AMD", "SMCI", "AI", "PLTR")
+dotcom_tickers <- c("MSFT", "INTC", "CSCO", "ORCL", "QCOM", "EBAY", "AMZN")
+
+# defining start and end dates per era 
+ai_start     <- as.Date("2020-01-01")
+ai_end       <- analysis_asof
+dotcom_start <- as.Date("1997-01-01")
+dotcom_end   <- as.Date("2002-12-31")
+
+all_tickers <- unique(c(ai_tickers, dotcom_tickers))
+suppressWarnings(
+  getSymbols(all_tickers, from = dotcom_start, to = ai_end, auto.assign = TRUE, src = "yahoo")
+)
+# Helper function:
+# For each stock ticker, this function extracts only the price history that falls
+# within the specific era we're analyzing.
+# If a ticker doesn’t have data for that time window (e.g., it wasn’t listed yet),
+# the function safely returns NULL instead of an error.
+# This way, the rest of the pipeline keeps running smoothly even if some tickers have gaps.
+
+
+slice_era <- function(sym, start_date, end_date) {
+  x <- get(sym, envir = .GlobalEnv)
+  tryCatch(window(x, start = start_date, end = end_date),
+           error = function(e) NULL)
+}
+
+# Create two lists of time series (xts objects), one for each era.
+# - ai_list holds the AI basket sliced to 2020–present.
+# - dotcom_list holds the Dot-com basket sliced to 1997–2002.
+
+ai_list     <- setNames(lapply(ai_tickers,     slice_era, start_date = ai_start,    end_date = ai_end),       ai_tickers)
+dotcom_list <- setNames(lapply(dotcom_tickers, slice_era, start_date = dotcom_start, end_date = dotcom_end), dotcom_tickers)
+```
+
+# 3. Process (Data Cleaning & Transformation)
+
+The raw data must be processed to enable a fair comparison. The primary step is normalization, where all stock prices are indexed to a starting value of 100. This allows us to compare their growth trajectories directly, rather than their absolute dollar prices.
+
+```{r process-data}
+# Transform each xts into a clean tibble with only date, adjusted close, and symbol.
+tidy_stock <- function(xts_obj, name) {
+  if (is.null(xts_obj)) return(tibble())  
+  df <- data.frame(Date = index(xts_obj), coredata(xts_obj))
+  names(df) <- gsub(".+\\.", "", names(df))  
+  as_tibble(df) |>
+    select(Date, Adjusted) |>
+    mutate(symbol = name)
+}
+
+# Apply the transformation to both baskets.
+ai_tidy     <- imap_dfr(ai_list,     ~ tidy_stock(.x, .y)) |> mutate(era = "AI")
+dotcom_tidy <- imap_dfr(dotcom_list, ~ tidy_stock(.x, .y)) |> mutate(era = "Dot-com")
+
+# Add a reference date (era_start) for each era. This lets me calculate how far each observation is from the beginning of the period.
+era_starts <- tibble(
+  era = c("AI", "Dot-com"),
+  era_start = c(ai_start, dotcom_start)
+)
+
+#Combine both datasets, normalize prices to 100 at start, and calculate "era_day".
+#This allows for a fair comparison of price trajectories across different stocks and eras.
+
+combined <- bind_rows(ai_tidy, dotcom_tidy) |>
+  inner_join(era_starts, by = "era") |>
+  filter(!is.na(Adjusted), Adjusted > 0) |>
+  group_by(symbol) |>
+  arrange(Date, .by_group = TRUE) |>
+  mutate(indexed_price = (Adjusted / first(Adjusted)) * 100) |>
+  ungroup() |>
+  mutate(era_day = as.integer(Date - era_start) + 1) |>
+  filter(era_day >= 1)
+
+write_csv(combined, "data/processed/combined_tidy_stock_data.csv")
+"Data processing complete"
+```
+
+# 4. Analyze (Finding the Story)
+
+With the data processed, I will perform the core analysis, comparing the two baskets on price volatility, indexed growth, and the key fundamental ratios.
+
+```{r analyze-data}
+
+stock_data <- read_csv("data/processed/combined_tidy_stock_data.csv", show_col_types = FALSE)
+
+# Compute median indexed price by day and era.
+average_trajectories <- stock_data |>
+  group_by(era, era_day) |>
+  summarize(median_indexed_price = median(indexed_price, na.rm = TRUE), .groups = "drop")
+
+#Median is used here instead of mean to reduce the impact of extreme outliers like EBAY or NVDA.
+
+"Median trajectories ready"
+```
+
+# 5. Share (Visualizing the Findings)
+
+**Visualization 1: This plot will compare the indexed price growth of the two baskets over time.**
+# 5A: IPO-aligned vs Era-aligned
+Here, I show the price trajectories through two lenses:
+- IPO-aligned: each stock starts counting at its IPO / first data point
+- Era-aligned: all stocks start counting at the beginning of the era
+
+```{r plot-aligned-graphs}
+
+# --- IPO-aligned dataset ---
+stock_data_ipo <- stock_data %>%
+group_by(symbol, era) %>%
+arrange(Date, .by_group = TRUE) %>%
+mutate(era_day_ipo = row_number()) %>%
+ungroup()
+
+avg_ipo <- stock_data_ipo %>%
+group_by(era, era_day_ipo) %>%
+summarize(median_indexed_price = median(indexed_price, na.rm = TRUE),
+.groups = "drop")
+
+avg_ipo <- avg_ipo %>%
+rename(era_day = era_day_ipo) %>%
+mutate(alignment = "IPO-aligned")
+
+avg_era <- average_trajectories %>%
+  mutate(alignment = "Era-aligned")
+
+plot_data <- bind_rows(avg_ipo, avg_era)
+
+# Plot both versions
+
+p_both <- ggplot(plot_data,
+aes(x = era_day, y = median_indexed_price, color = era)) +
+geom_line(size = 1) +
+facet_wrap(~ alignment, ncol = 2, scales = "free_x") +
+labs(
+title    = "AI Rally vs. Dot-com Bubble",
+subtitle = "Two perspectives: IPO-aligned vs Era-aligned",
+x = "Trading Days Since Alignment Start",
+y = "Median Indexed Price",
+color = "Era"
+) +
+theme_minimal() +
+theme(
+plot.title = element_text(face = "bold", size = 16),
+legend.position = "bottom"
+)
+
+print(p_both)
+```
+
+**Visualization 2: The Substance Check.** This plot will compare the average Price-to-Sales ratios and Revenue Growth for both baskets at their respective peaks.
+
+```{r plot-P/S}
+
+#I use hardcoded peak values from YCharts to avoid scraping limitations.
+peak_ps <- tribble(
+  ~symbol, ~peak_ps, ~era,
+  # Dot-com
+  "MSFT", 30.91, "Dot-com", "INTC", 15.11, "Dot-com", "CSCO", 32.95, "Dot-com",
+  "ORCL", 33.33, "Dot-com", "QCOM", 57.40, "Dot-com", "EBAY", 92.06, "Dot-com",
+  "AMZN", 17.75, "Dot-com",
+  # AI
+  "MSFT", 14.11, "AI", "GOOG", 8.538, "AI", "NVDA", 44.05, "AI",
+  "AMD", 15.13, "AI", "SMCI", 12.19, "AI", "AI", 19.08, "AI", "PLTR", 136.16, "AI"
+)
+
+ps_summary <- peak_ps %>%
+  group_by(era) %>%
+  summarize(avg = mean(peak_ps), sd = sd(peak_ps), .groups = "drop")
+
+ggplot(ps_summary, aes(era, avg, fill = era)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_errorbar(aes(ymin = pmax(avg - sd, 0), ymax = avg + sd), width = 0.1) +
+  geom_text(aes(label = round(avg, 1)), vjust = -0.5) +
+  labs(
+    title = "Peak Price-to-Sales Ratio by Era",
+    subtitle = "Bars show mean; whiskers show ±1 SD across basket constituents",
+    x = NULL, y = "P/S Ratio",
+    caption = "Source: Ycharts."
+  ) +
+  theme_minimal()
+```
+
+```{r plot-revenue-gr}
+
+peak_growth <- tribble(
+  ~symbol, ~peak_growth_pct, ~era,
+  # Dot-com
+  "MSFT", 63.33, "Dot-com", "INTC", 23.04, "Dot-com", "CSCO", 153.40, "Dot-com",
+  "ORCL", 27.87, "Dot-com", "QCOM", 19.00, "Dot-com", "EBAY", 279.20, "Dot-com",
+  "AMZN", 167.30, "Dot-com",
+  # AI
+  "MSFT", 18.10, "AI", "GOOG", 15.44, "AI", "NVDA", 265.30, "AI",
+  "AMD", 35.90, "AI", "SMCI", 200.00, "AI", "AI", 28.83, "AI", "PLTR", 48.01, "AI"
+)
+
+growth_summary <- peak_growth %>%
+  group_by(era) %>%
+  summarize(avg = mean(peak_growth_pct), sd = sd(peak_growth_pct), .groups = "drop")
+
+ggplot(growth_summary, aes(era, avg, fill = era)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_errorbar(aes(ymin = pmax(avg - sd, 0), ymax = avg + sd), width = 0.1) +
+  geom_text(aes(label = paste0(round(avg, 1), "%")), vjust = -0.5) +
+  labs(
+    title = "Peak Quarterly Revenue Growth by Era",
+    subtitle = "Bars show mean; whiskers show ±1 SD across basket constituents",
+    x = NULL, y = "Growth (%)",
+    caption = "Source: Ycharts"
+  ) +
+  theme_minimal()
+```
+# 6. Act
+
+The comparative analysis of the Dot-com and AI market cycles reveals that, although the AI rally exhibits price dynamics that mirror historical bubble patterns, its underlying structure is fundamentally different. When aligning stocks by IPO date, the AI cohort demonstrates a sharper median price trajectory, driven by a smaller number of high-performing firms. However, unlike the Dot-com boom, these valuations are not detached from revenue performance. Peak price-to-sales ratios for AI stocks are broadly in line with those observed during the late 1990s, but they are underpinned by more stable and mature revenue growth profiles, reflecting the dominance of large incumbents rather than unprofitable early-stage firms. This indicates that, while speculative behavior is present, the AI rally is less systemic and more concentrated, suggesting a lower likelihood of a broad market collapse comparable to 2000. For investors and asset allocators, this implies that the AI theme should be approached with targeted exposure rather than broad thematic bets, focusing on firms with strong fundamentals and sustainable growth trajectories.
+
+
