@@ -17,7 +17,7 @@ This project compares the current **AI market rally** to the **Dot-com bubble**,
 ---
 
 ## 🌐 View the Report
-[Open the interactive HTML analysis](https://gabrielealiano.github.io/ai-bubble-case-study/output/analysis.html)
+👉[Open the interactive HTML analysis](https://gabrielealiano.github.io/ai-bubble-case-study/output/analysis.html)
 ---
 
 ## 🛠️ Tools
