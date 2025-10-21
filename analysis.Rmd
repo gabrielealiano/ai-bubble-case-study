@@ -17,7 +17,7 @@ analysis_asof <- as.Date("2025-10-20")
 
 dir.create("data/processed", recursive = TRUE, showWarnings = FALSE)
 ```
-# 1. Ask (The Business Task)
+# 1. Ask
 
 Our client, Momentum Wealth Management, is fielding concerns from clients about a potential "AI Bubble." They are wary of a repeat of the 2000 Dot-com crash.
 
@@ -31,7 +31,7 @@ Financial Fundamentals: How do valuations (Price-to-Sales) and actual growth (Re
 
 The final deliverable will be a data-driven recommendation for the firm's portfolio managers.
 
-# 2. Prepare (Data Collection)
+# 2. Prepare
 
 To perform this analysis:
 
@@ -84,7 +84,7 @@ ai_list     <- setNames(lapply(ai_tickers,     slice_era, start_date = ai_start,
 dotcom_list <- setNames(lapply(dotcom_tickers, slice_era, start_date = dotcom_start, end_date = dotcom_end), dotcom_tickers)
 ```
 
-# 3. Process (Data Cleaning & Transformation)
+# 3. Process
 
 The raw data must be processed to enable a fair comparison. The primary step is normalization, where all stock prices are indexed to a starting value of 100. This allows us to compare their growth trajectories directly, rather than their absolute dollar prices.
 
@@ -126,7 +126,7 @@ write_csv(combined, "data/processed/combined_tidy_stock_data.csv")
 "Data processing complete"
 ```
 
-# 4. Analyze (Finding the Story)
+# 4. Analyze
 
 With the data processed, I will perform the core analysis, comparing the two baskets on price volatility, indexed growth, and the key fundamental ratios.
 
@@ -144,7 +144,7 @@ average_trajectories <- stock_data |>
 "Median trajectories ready"
 ```
 
-# 5. Share (Visualizing the Findings)
+# 5. Share
 
 **Visualization 1: This plot will compare the indexed price growth of the two baskets over time.**
 # 5A: IPO-aligned vs Era-aligned
@@ -259,8 +259,16 @@ ggplot(growth_summary, aes(era, avg, fill = era)) +
   ) +
   theme_minimal()
 ```
+
 # 6. Act
-
-The comparative analysis of the Dot-com and AI market cycles reveals that, although the AI rally exhibits price dynamics that mirror historical bubble patterns, its underlying structure is fundamentally different. When aligning stocks by IPO date, the AI cohort demonstrates a sharper median price trajectory, driven by a smaller number of high-performing firms. However, unlike the Dot-com boom, these valuations are not detached from revenue performance. Peak price-to-sales ratios for AI stocks are broadly in line with those observed during the late 1990s, but they are underpinned by more stable and mature revenue growth profiles, reflecting the dominance of large incumbents rather than unprofitable early-stage firms. This indicates that, while speculative behavior is present, the AI rally is less systemic and more concentrated, suggesting a lower likelihood of a broad market collapse comparable to 2000. For investors and asset allocators, this implies that the AI theme should be approached with targeted exposure rather than broad thematic bets, focusing on firms with strong fundamentals and sustainable growth trajectories.
-
-
+<br>
+**Market Composition:**<br>
+- The Dot-com rally was driven by a broad base of speculative startups with limited revenues, whereas the AI rally is led by a small number of large, profitable firms. This makes the foundation   of the current rally structurally stronger.<br>
+**Valuations & Fundamentals:**<br>
+- Both eras show high valuation multiples, but AI leaders pair these with real revenues and established business models. In contrast, many Dot-com firms were priced on expectations rather than   fundamentals.<br>
+**Revenue Growth Profiles:**<br>
+- Dot-com companies experienced explosive growth off small revenue bases, resulting in extreme spikes. AI-era firms show more moderate but sustained growth from larger revenue bases, indicating   greater maturity and stability.<br>
+**Market Breadth & Risk:**<br>
+- The Dot-com boom swept the entire market, amplifying its systemic impact. The AI rally is narrow and concentrated, lowering the likelihood of a broad-based collapse.<br>
+**Strategic Implication:**<br>
+- Given these differences, broad thematic bets on AI may be risky. A targeted approach focusing on firms with strong fundamentals and durable growth trajectories offers a more resilient investment strategy.
