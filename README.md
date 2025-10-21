@@ -9,11 +9,11 @@ This project compares the current **AI market rally** to the **Dot-com bubble**,
 ---
 
 ## 📊 Key Insights
-- AI rally shows a **bubble-like acceleration** similar to the late 1990s.  
--  Unlike Dot-com, valuations are **supported by stronger revenue growth**.  
--  Speculative behavior is present but more **concentrated**, not systemic.  
--  Implication: **Targeted exposure** may be safer than broad thematic bets.
-
+- The AI rally shows a **bubble-like acceleration pattern** similar to the late 1990s Dot-com boom.
+- **Valuations are high**, but unlike Dot-com, they’re supported by stronger and **more mature revenue growth**.
+- **Speculative activity** exists but is **concentrated** in a few large-cap leaders, not
+- Implication: **Targeted exposure** may be safer than broad thematic bets.
+  
 ---
 
 ## 🌐 View the Report
